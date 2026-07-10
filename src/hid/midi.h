@@ -226,10 +226,19 @@ class MidiHandler
     }
 
   private:
-    Config               config_;
-    Transport            transport_;
-    MidiParser           parser_;
-    FIFO<MidiEvent, 256> event_q_;
+    Config    config_;
+    Transport transport_;
+    MidiParser parser_;
+    // eurorack-bingo-drums: shrunk from the stock 256 — MidiEvent carries a
+    // 128-byte SysEx buffer (unused by this project) making each queue slot
+    // ~150+ bytes, so 256 slots is ~38KB per MidiHandler instance. SRAM here
+    // is razor-thin (94%+ used with just USB MIDI), and running USB + TRS
+    // MIDI simultaneously means two of these queues — the stock depth
+    // overflowed SRAM by ~13KB. The queue is drained every audio callback
+    // (~83us @ 48kHz/block-4) via HasEvents()/PopEvent(), so it only needs
+    // to absorb a short burst, not hold hundreds of events; 32 is generous
+    // for that and cuts each instance's footprint roughly 8x.
+    FIFO<MidiEvent, 32> event_q_;
 
     static void ParseCallback(uint8_t* data, size_t size, void* context)
     {
